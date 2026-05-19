@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oil Price Forecast Model</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111417;
+    --surface2: #181c20;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaed;
+    --text-muted: #6b7280;
+    --text-dim: #374151;
+    --accent: #3b82f6;
+    --accent-dim: rgba(59,130,246,0.12);
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --amber: #f59e0b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .header-left h1 {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .header-left p {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text-muted);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .ctrl { display: flex; flex-direction: column; gap: 6px; }
+
+  .ctrl label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .ctrl input[type="number"] {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 7px 10px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .ctrl input[type="number"]:focus { border-color: var(--accent); }
+
+  .ctrl input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .ctrl .val-display {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .run-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 24px;
+    cursor: pointer;
+    letter-spacing: .02em;
+    transition: opacity .15s, transform .1s;
+    align-self: flex-end;
+  }
+  .run-btn:hover { opacity: .88; }
+  .run-btn:active { transform: scale(0.98); }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+
+  .metric .lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .metric .val {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .metric .val.up { color: var(--green); }
+  .metric .val.dn { color: var(--red); }
+  .metric .val.neu { color: var(--text); }
+
+  .chart-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .swatch { width: 20px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+  .swatch.wide { height: 8px; border-radius: 2px; opacity: 0.5; }
+
+  .chart-wrap { position: relative; width: 100%; height: 300px; }
+
+  .table-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--surface2);
+    white-space: nowrap;
+  }
+
+  td {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-bottom: 0.5px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .badge.up { background: var(--green-dim); color: var(--green); }
+  .badge.dn { background: var(--red-dim); color: var(--red); }
+  .badge.neu { background: var(--accent-dim); color: var(--accent); }
+
+  footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 0.5px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 1rem; }
+    .controls-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>// Oil Price Forecast Model</h1>
+    <p>Monte Carlo · Mean-Reverting GBM · 2,000 paths · 7 horizons</p>
+  </div>
+  <span class="tag">Brent / WTI</span>
+</header>
+
+<div class="controls-grid">
+  <div class="ctrl">
+    <label>Spot price (USD/bbl)</label>
+    <input type="number" id="spot" value="82.50" min="20" max="200" step="0.5">
+  </div>
+  <div class="ctrl">
+    <label>Annual volatility</label>
+    <input type="range" id="vol" min="10" max="60" value="28" step="1">
+    <span class="val-display" id="vol-out">28%</span>
+  </div>
+  <div class="ctrl">
+    <label>Trend bias (/yr)</label>
+    <input type="range" id="drift" min="-30" max="30" value="2" step="1">
+    <span class="val-display" id="drift-out">+2%</span>
+  </div>
+  <div class="ctrl">
+    <label>Mean reversion speed</label>
+    <input type="range" id="mr" min="0" max="100" value="30" step="5">
+    <span class="val-display" id="mr-out">30%</span>
+  </div>
+  <div class="ctrl">
+    <label>Long-run mean (USD/bbl)</label>
+    <input type="number" id="lrm" value="78" min="20" max="200" step="1">
+  </div>
+  <div class="ctrl" style="justify-content:flex-end;">
+    <button class="run-btn" onclick="runModel()">▶ Run forecast</button>
+  </div>
+</div>
+
+<div class="metrics" id="metrics"></div>
+
+<div class="chart-section">
+  <div class="chart-header">
+    <span class="chart-title">Price distribution across horizons</span>
+    <div class="legend">
+      <span><span class="swatch" style="background:#3b82f6;"></span>Median</span>
+      <span><span class="swatch wide" style="background:#3b82f6;"></span>80% CI</span>
+      <span><span class="swatch wide" style="background:#3b82f6; opacity:.2;"></span>95% CI</span>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="chart" role="img" aria-label="Oil price forecast showing median and confidence intervals across 7 time horizons"></canvas>
+  </div>
+</div>
+
+<div class="table-section">
+  <table>
+    <thead>
+      <tr>
+        <th>Horizon</th>
+        <th>Median</th>
+        <th>P10 (low)</th>
+        <th>P90 (high)</th>
+        <th>95% CI low</th>
+        <th>95% CI high</th>
+        <th>vs spot</th>
+        <th>Signal</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<footer>
+  Model: Ornstein-Uhlenbeck mean-reverting GBM · Not financial advice · Generated with Claude
+</footer>
+
+<script>
+const HORIZONS = [
+  { label: '1 week',   days: 7   },
+  { label: '1 month',  days: 30  },
+  { label: '2 months', days: 61  },
+  { label: '3 months', days: 91  },
+  { label: '4 months', days: 122 },
+  { label: '5 months', days: 152 },
+  { label: '6 months', days: 183 },
+];
+
+let chartInst = null;
+
+function randn() {
+  let u = 0, v = 0;
+  while (!u) u = Math.random();
+  while (!v) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function simulatePaths(S0, annualVol, annualDrift, mrSpeed, lrm, days, nPaths = 2000) {
+  const dt = 1 / 252;
+  const finals = [];
+  for (let i = 0; i < nPaths; i++) {
+    let S = S0;
+    for (let t = 0; t < days; t++) {
+      const meanRevTerm = mrSpeed * (lrm - S) * dt;
+      const trendTerm = annualDrift * S * dt;
+      const diffTerm = annualVol * S * Math.sqrt(dt) * randn();
+      S = Math.max(1, S + meanRevTerm + trendTerm + diffTerm);
+    }
+    finals.push(S);
+  }
+  finals.sort((a, b) => a - b);
+  return finals;
+}
+
+function quantile(sorted, q) {
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  return base + 1 < sorted.length ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
+}
+
+function signal(med, spot) {
+  const pct = (med - spot) / spot * 100;
+  if (pct > 3) return { text: 'Bullish', cls: 'up' };
+  if (pct < -3) return { text: 'Bearish', cls: 'dn' };
+  return { text: 'Neutral', cls: 'neu' };
+}
+
+function runModel() {
+  const spot = parseFloat(document.getElementById('spot').value) || 82.5;
+  const vol  = parseFloat(document.getElementById('vol').value) / 100;
+  const drift = parseFloat(document.getElementById('drift').value) / 100;
+  const mr   = parseFloat(document.getElementById('mr').value) / 100;
+  const lrm  = parseFloat(document.getElementById('lrm').value) || 78;
+
+  const results = HORIZONS.map(h => {
+    const sims = simulatePaths(spot, vol, drift, mr, lrm, h.days);
+    return {
+      label: h.label,
+      p5:  quantile(sims, 0.05),
+      p10: quantile(sims, 0.10),
+      p50: quantile(sims, 0.50),
+      p90: quantile(sims, 0.90),
+      p95: quantile(sims, 0.95),
+    };
+  });
+
+  const labels   = ['Now', ...results.map(r => r.label)];
+  const medians  = [spot, ...results.map(r => r.p50)];
+  const lo80     = [spot, ...results.map(r => r.p10)];
+  const hi80     = [spot, ...results.map(r => r.p90)];
+  const lo95     = [spot, ...results.map(r => r.p5)];
+  const hi95     = [spot, ...results.map(r => r.p95)];
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chartInst) chartInst.destroy();
+
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '95h', data: hi95, borderColor: 'transparent', backgroundColor: 'rgba(59,130,246,0.10)', fill: '+1', pointRadius: 0, tension: 0.4 },
+        { label: '95l', data: lo95, borderColor: 'transparent', backgroundColor: 'rgba(59,130,246,0.10)', fill: false, pointRadius: 0, tension: 0.4 },
+        { label: '80h', data: hi80, borderColor: 'transparent', backgroundColor: 'rgba(59,130,246,0.22)', fill: '+1', pointRadius: 0, tension: 0.4 },
+        { label: '80l', data: lo80, borderColor: 'transparent', backgroundColor: 'rgba(59,130,246,0.22)', fill: false, pointRadius: 0, tension: 0.4 },
+        { label: 'Median', data: medians, borderColor: '#3b82f6', backgroundColor: '#3b82f6', fill: false, pointRadius: [0,4,4,4,4,4,4,4], borderWidth: 2, tension: 0.4 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c20',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 0.5,
+          titleColor: '#9ca3af',
+          bodyColor: '#e8eaed',
+          titleFont: { family: 'IBM Plex Mono', size: 11 },
+          bodyFont: { family: 'IBM Plex Mono', size: 12 },
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Median') return ` Median: $${ctx.parsed.y.toFixed(2)}`;
+              if (ctx.dataset.label === '80h') return ` 80% CI: $${lo80[ctx.dataIndex].toFixed(2)} – $${hi80[ctx.dataIndex].toFixed(2)}`;
+              if (ctx.dataset.label === '95h') return ` 95% CI: $${lo95[ctx.dataIndex].toFixed(2)} – $${hi95[ctx.dataIndex].toFixed(2)}`;
+              return null;
+            },
+            filter: item => ['Median','80h','95h'].includes(item.dataset.label),
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 11 }, callback: v => '$' + v.toFixed(0) }
+        }
+      }
+    }
+  });
+
+  const last = results[results.length - 1];
+  const chg6 = ((last.p50 - spot) / spot * 100).toFixed(1);
+  document.getElementById('metrics').innerHTML = [
+    { lbl: 'Spot price',     val: '$' + spot.toFixed(2),        cls: 'neu' },
+    { lbl: '1-week median',  val: '$' + results[0].p50.toFixed(2), cls: results[0].p50 >= spot ? 'up' : 'dn' },
+    { lbl: '1-month median', val: '$' + results[1].p50.toFixed(2), cls: results[1].p50 >= spot ? 'up' : 'dn' },
+    { lbl: '3-month median', val: '$' + results[3].p50.toFixed(2), cls: results[3].p50 >= spot ? 'up' : 'dn' },
+    { lbl: '6-month median', val: '$' + last.p50.toFixed(2),     cls: last.p50 >= spot ? 'up' : 'dn' },
+    { lbl: '6-month change', val: (chg6 >= 0 ? '+' : '') + chg6 + '%', cls: chg6 >= 0 ? 'up' : 'dn' },
+  ].map(m => `<div class="metric"><div class="lbl">${m.lbl}</div><div class="val ${m.cls}">${m.val}</div></div>`).join('');
+
+  document.getElementById('tbody').innerHTML = results.map(r => {
+    const chg = ((r.p50 - spot) / spot * 100).toFixed(1);
+    const sig = signal(r.p50, spot);
+    return `<tr>
+      <td>${r.label}</td>
+      <td>$${r.p50.toFixed(2)}</td>
+      <td>$${r.p10.toFixed(2)}</td>
+      <td>$${r.p90.toFixed(2)}</td>
+      <td>$${r.p5.toFixed(2)}</td>
+      <td>$${r.p95.toFixed(2)}</td>
+      <td style="color:${chg >= 0 ? '#10b981' : '#ef4444'}">${chg >= 0 ? '+' : ''}${chg}%</td>
+      <td><span class="badge ${sig.cls}">${sig.text}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('vol').addEventListener('input', e => document.getElementById('vol-out').textContent = e.target.value + '%');
+document.getElementById('drift').addEventListener('input', e => { const v = parseInt(e.target.value); document.getElementById('drift-out').textContent = (v >= 0 ? '+' : '') + v + '%'; });
+document.getElementById('mr').addEventListener('input', e => document.getElementById('mr-out').textContent = e.target.value + '%');
+
+runModel();
+</script>
+</body>
+</html>
