@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPC.V — Falco Resources Forecast & Buyout Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111417;
+    --surface2: #181c20;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaed;
+    --muted: #6b7280;
+    --dim: #374151;
+    --gold: #d4a017;
+    --gold-dk: #92400e;
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.12);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .header-left h1 {
+    font-family: var(--mono);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--gold);
+    margin-bottom: 4px;
+    letter-spacing: -.01em;
+  }
+
+  .header-left p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: 3px;
+    color: var(--muted);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .tag.gold { border-color: rgba(212,160,23,0.4); color: var(--gold); }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Fact cards */
+  .fact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+
+  .fact {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+
+  .fact .lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  .fact .val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .fact .val.gold { color: var(--gold); }
+  .fact .val.green { color: var(--green); }
+  .fact .sub { font-size: 11px; color: var(--dim); margin-top: 2px; font-family: var(--mono); }
+
+  /* Controls */
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    padding: 1.25rem;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    align-items: end;
+  }
+
+  .ctrl { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .ctrl input[type=number] {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 7px 10px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .ctrl input[type=number]:focus { border-color: var(--gold); }
+  .ctrl input[type=range] { accent-color: var(--gold); cursor: pointer; width: 100%; }
+  .ctrl .vd { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--gold); }
+
+  .run-btn {
+    background: var(--gold);
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    width: 100%;
+  }
+  .run-btn:hover { opacity: .85; }
+  .run-btn:active { transform: scale(0.98); }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+  .legend span { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .sw { width: 22px; height: 2px; border-radius: 1px; }
+  .swb { width: 14px; height: 10px; border-radius: 2px; }
+
+  /* Chart */
+  .chart-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .chart-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+  .chart-wrap { position: relative; width: 100%; height: 320px; }
+
+  /* Buyout scenarios */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+
+  .scenario {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .scenario.conservative { border-color: rgba(16,185,129,0.35); }
+  .scenario.base { border-color: rgba(212,160,23,0.45); }
+  .scenario.bull { border-color: rgba(59,130,246,0.4); }
+  .scenario.stretch { border-color: rgba(239,68,68,0.35); }
+
+  .sc-label { font-family: var(--mono); font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+  .sc-label.conservative { color: var(--green); }
+  .sc-label.base { color: var(--gold); }
+  .sc-label.bull { color: var(--blue); }
+  .sc-label.stretch { color: var(--red); }
+
+  .sc-price { font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .sc-upside { font-family: var(--mono); font-size: 12px; font-weight: 500; margin-bottom: 10px; }
+  .sc-note { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+  /* Table */
+  .table-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--surface2);
+    white-space: nowrap;
+  }
+  td {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-bottom: 0.5px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .badge.up { background: var(--green-dim); color: var(--green); }
+  .badge.mid { background: rgba(212,160,23,.12); color: var(--gold); }
+  .badge.hi { background: var(--blue-dim); color: var(--blue); }
+  .badge.xt { background: var(--red-dim); color: var(--red); }
+  .badge.neu { background: rgba(107,114,128,.1); color: var(--muted); }
+
+  footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 0.5px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 1rem; }
+    .controls { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>// FPC.V — Falco Resources Ltd.</h1>
+    <p>Monte Carlo forecast · Horne 5 buyout analysis · All prices CAD</p>
+  </div>
+  <div class="tags">
+    <span class="tag gold">TSXV: FPC</span>
+    <span class="tag">Rouyn-Noranda, QC</span>
+    <span class="tag">6.1M oz AuEq</span>
+  </div>
+</header>
+
+<div class="section-title">Company snapshot</div>
+<div class="fact-grid">
+  <div class="fact"><div class="lbl">Current price</div><div class="val">CA$0.51</div><div class="sub">52-wk: $0.20 – $0.58</div></div>
+  <div class="fact"><div class="lbl">Market cap</div><div class="val">CA$177M</div><div class="sub">~350M shares out</div></div>
+  <div class="fact"><div class="lbl">Total reserves</div><div class="val gold">6.1M oz</div><div class="sub">AuEq proven+probable</div></div>
+  <div class="fact"><div class="lbl">Additional resource</div><div class="val gold">3.2M oz</div><div class="sub">AuEq all categories</div></div>
+  <div class="fact"><div class="lbl">Annual production</div><div class="val">220K oz</div><div class="sub">Au/yr · 15-yr mine life</div></div>
+  <div class="fact"><div class="lbl">AISC</div><div class="val green">$587/oz</div><div class="sub">Net of by-product credits</div></div>
+  <div class="fact"><div class="lbl">2021 FS NPV (5%)</div><div class="val">US$761M</div><div class="sub">At $1,600/oz gold</div></div>
+  <div class="fact"><div class="lbl">Analyst target</div><div class="val green">CA$0.90</div><div class="sub">Strong buy consensus</div></div>
+</div>
+
+<div class="section-title">Monte Carlo price forecast</div>
+<div class="controls">
+  <div class="ctrl">
+    <label>Spot price (CAD)</label>
+    <input type="number" id="spot" value="0.51" min="0.10" max="10.00" step="0.01">
+  </div>
+  <div class="ctrl">
+    <label>Volatility (%/yr)</label>
+    <input type="range" id="vol" min="20" max="120" value="55" step="1">
+    <span class="vd" id="vol-out">55%</span>
+  </div>
+  <div class="ctrl">
+    <label>Trend bias (%/yr)</label>
+    <input type="range" id="drift" min="-40" max="80" value="20" step="1">
+    <span class="vd" id="drift-out">+20%</span>
+  </div>
+  <div class="ctrl">
+    <label>Mean reversion</label>
+    <input type="range" id="mr" min="0" max="80" value="15" step="5">
+    <span class="vd" id="mr-out">15%</span>
+  </div>
+  <div class="ctrl">
+    <label>Long-run mean (CAD)</label>
+    <input type="number" id="lrm" value="0.90" min="0.10" max="10.00" step="0.05">
+  </div>
+  <div class="ctrl">
+    <button class="run-btn" onclick="runModel()">▶ Run forecast</button>
+  </div>
+</div>
+
+<div class="chart-section">
+  <div class="chart-header">
+    <span class="section-title" style="margin:0;">Price distribution across horizons</span>
+    <div class="legend">
+      <span><span class="sw" style="background:#d4a017;"></span>Median</span>
+      <span><span class="swb" style="background:#d4a017;opacity:.5;"></span>80% CI</span>
+      <span><span class="swb" style="background:#d4a017;opacity:.18;"></span>95% CI</span>
+      <span><span class="sw" style="background:#10b981;border-top:2px dashed #10b981;height:0;"></span>Buyout levels</span>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="chart" role="img" aria-label="FPC.V stock price forecast with buyout scenario reference lines"></canvas>
+  </div>
+</div>
+
+<div class="section-title" style="margin-bottom:6px;">Buyout / acquisition scenarios</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:14px;font-family:var(--mono);">Based on 6.1M oz AuEq reserves · 350M shares out · gold M&A typically 15–35% of in-situ value</p>
+<div class="scenario-grid">
+  <div class="scenario conservative">
+    <div class="sc-label conservative">Conservative</div>
+    <div class="sc-price" id="sc1">CA$1.20</div>
+    <div class="sc-upside" id="sc1u" style="color:var(--green);">+135% upside</div>
+    <div class="sc-note">~$20/oz in-situ on reserves. Mid-tier acquirer seeking a permitted Quebec asset. Modest control premium over NAV.</div>
+  </div>
+  <div class="scenario base">
+    <div class="sc-label base">Base case</div>
+    <div class="sc-price" id="sc2">CA$2.20</div>
+    <div class="sc-upside" id="sc2u" style="color:var(--gold);">+331% upside</div>
+    <div class="sc-note">~$35/oz on reserves at $3,300+ gold. Comparable to recent junior gold M&A premiums of 30–50% to NAV.</div>
+  </div>
+  <div class="scenario bull">
+    <div class="sc-label bull">Bull case</div>
+    <div class="sc-price" id="sc3">CA$3.50</div>
+    <div class="sc-upside" id="sc3u" style="color:var(--blue);">+586% upside</div>
+    <div class="sc-note">Full NAV takeover (~0.8× NPV). Updated FS at $3,300 gold lifts NPV to ~US$2–3B. Agnico Eagle, Newmont, or Glencore.</div>
+  </div>
+  <div class="scenario stretch">
+    <div class="sc-label stretch">Stretch</div>
+    <div class="sc-price" id="sc4">CA$5.50</div>
+    <div class="sc-upside" id="sc4u" style="color:var(--red);">+978% upside</div>
+    <div class="sc-note">1× NPV at $4,000+ gold. Rare but precedented for world-class fully-permitted Quebec deposit near existing smelter infrastructure.</div>
+  </div>
+</div>
+
+<div class="section-title">Forecast table (all CAD)</div>
+<div class="table-section">
+  <table>
+    <thead>
+      <tr>
+        <th>Horizon</th>
+        <th>Median</th>
+        <th>P10 (low)</th>
+        <th>P90 (high)</th>
+        <th>95% CI low</th>
+        <th>95% CI high</th>
+        <th>vs today</th>
+        <th>Signal</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<footer>
+  ⚠ Not financial advice. FPC.V is a pre-revenue junior developer with permitting risk, financing risk (~US$844M capex required), and commodity price sensitivity.<br>
+  Monte Carlo: mean-reverting GBM, 2,000 paths. Buyout ranges based on comparable gold M&A transactions and project NPV estimates — actual outcomes vary widely.<br>
+  Data sourced from Falco Resources press releases, 2021 Feasibility Study, and public market data. Generated with Claude · May 2026.
+</footer>
+
+<script>
+const HORIZONS = [
+  { label: '1 week',   days: 7   },
+  { label: '1 month',  days: 30  },
+  { label: '2 months', days: 61  },
+  { label: '3 months', days: 91  },
+  { label: '4 months', days: 122 },
+  { label: '5 months', days: 152 },
+  { label: '6 months', days: 183 },
+];
+
+let chartInst = null;
+
+function randn() {
+  let u = 0, v = 0;
+  while (!u) u = Math.random();
+  while (!v) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function sim(S0, vol, drift, mr, lrm, days, n = 2000) {
+  const dt = 1 / 252;
+  const finals = [];
+  for (let i = 0; i < n; i++) {
+    let S = S0;
+    for (let t = 0; t < days; t++) {
+      S = Math.max(0.01, S + mr * (lrm - S) * dt + drift * S * dt + vol * S * Math.sqrt(dt) * randn());
+    }
+    finals.push(S);
+  }
+  finals.sort((a, b) => a - b);
+  return finals;
+}
+
+function q(sorted, p) {
+  const pos = (sorted.length - 1) * p;
+  const b = Math.floor(pos), r = pos - b;
+  return b + 1 < sorted.length ? sorted[b] + r * (sorted[b + 1] - sorted[b]) : sorted[b];
+}
+
+function badge(med, spot) {
+  const pct = (med - spot) / spot * 100;
+  if (pct > 50) return { txt: 'Stretch', cls: 'xt' };
+  if (pct > 20) return { txt: 'Bullish', cls: 'hi' };
+  if (pct > 5)  return { txt: 'Positive', cls: 'mid' };
+  if (pct > -5) return { txt: 'Neutral', cls: 'neu' };
+  return { txt: 'Bearish', cls: 'up' };
+}
+
+function updateBuyouts(spot) {
+  const sc = [
+    { id: 'sc1', price: 1.20 },
+    { id: 'sc2', price: 2.20 },
+    { id: 'sc3', price: 3.50 },
+    { id: 'sc4', price: 5.50 },
+  ];
+  sc.forEach(s => {
+    const upside = ((s.price - spot) / spot * 100).toFixed(0);
+    document.getElementById(s.id).textContent = 'CA$' + s.price.toFixed(2);
+    document.getElementById(s.id + 'u').textContent = (upside > 0 ? '+' : '') + upside + '% upside';
+  });
+}
+
+function runModel() {
+  const spot  = parseFloat(document.getElementById('spot').value) || 0.51;
+  const vol   = parseFloat(document.getElementById('vol').value) / 100;
+  const drift = parseFloat(document.getElementById('drift').value) / 100;
+  const mr    = parseFloat(document.getElementById('mr').value) / 100;
+  const lrm   = parseFloat(document.getElementById('lrm').value) || 0.90;
+
+  updateBuyouts(spot);
+
+  const results = HORIZONS.map(h => {
+    const s = sim(spot, vol, drift, mr, lrm, h.days);
+    return { label: h.label, p5: q(s,.05), p10: q(s,.10), p50: q(s,.50), p90: q(s,.90), p95: q(s,.95) };
+  });
+
+  const labels = ['Now', ...results.map(r => r.label)];
+  const med  = [spot, ...results.map(r => r.p50)];
+  const lo80 = [spot, ...results.map(r => r.p10)];
+  const hi80 = [spot, ...results.map(r => r.p90)];
+  const lo95 = [spot, ...results.map(r => r.p5)];
+  const hi95 = [spot, ...results.map(r => r.p95)];
+
+  const refLines  = [1.20, 2.20, 3.50, 5.50];
+  const refColors = ['rgba(16,185,129,0.55)', 'rgba(212,160,23,0.65)', 'rgba(59,130,246,0.55)', 'rgba(239,68,68,0.55)'];
+  const refLabels = ['Conservative $1.20', 'Base $2.20', 'Bull $3.50', 'Stretch $5.50'];
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chartInst) chartInst.destroy();
+
+  const refDatasets = refLines.map((v, i) => ({
+    label: refLabels[i],
+    data: labels.map(() => v),
+    borderColor: refColors[i],
+    borderDash: [5, 5],
+    borderWidth: 1,
+    pointRadius: 0,
+    fill: false,
+    tension: 0,
+  }));
+
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '95h', data: hi95, borderColor: 'transparent', backgroundColor: 'rgba(212,160,23,0.08)', fill: '+1', pointRadius: 0, tension: .4 },
+        { label: '95l', data: lo95, borderColor: 'transparent', backgroundColor: 'rgba(212,160,23,0.08)', fill: false, pointRadius: 0, tension: .4 },
+        { label: '80h', data: hi80, borderColor: 'transparent', backgroundColor: 'rgba(212,160,23,0.22)', fill: '+1', pointRadius: 0, tension: .4 },
+        { label: '80l', data: lo80, borderColor: 'transparent', backgroundColor: 'rgba(212,160,23,0.22)', fill: false, pointRadius: 0, tension: .4 },
+        { label: 'Median', data: med, borderColor: '#d4a017', backgroundColor: '#d4a017', fill: false, pointRadius: [0,4,4,4,4,4,4,4], borderWidth: 2.5, tension: .4 },
+        ...refDatasets,
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c20',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 0.5,
+          titleColor: '#9ca3af',
+          bodyColor: '#e8eaed',
+          titleFont: { family: 'IBM Plex Mono', size: 11 },
+          bodyFont: { family: 'IBM Plex Mono', size: 12 },
+          callbacks: {
+            label: c => {
+              if (c.dataset.label === 'Median') return ` Median: CA$${c.parsed.y.toFixed(3)}`;
+              if (c.dataset.label === '80h')    return ` 80% CI: CA$${lo80[c.dataIndex].toFixed(3)} – CA$${hi80[c.dataIndex].toFixed(3)}`;
+              if (c.dataset.label === '95h')    return ` 95% CI: CA$${lo95[c.dataIndex].toFixed(3)} – CA$${hi95[c.dataIndex].toFixed(3)}`;
+              if (refLabels.includes(c.dataset.label)) return ` ${c.dataset.label}`;
+              return null;
+            },
+            filter: i => ['Median', '80h', '95h', ...refLabels].includes(i.dataset.label),
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 11 }, callback: v => 'CA$' + v.toFixed(2) } }
+      }
+    }
+  });
+
+  document.getElementById('tbody').innerHTML = results.map(r => {
+    const chg = ((r.p50 - spot) / spot * 100).toFixed(1);
+    const b = badge(r.p50, spot);
+    return `<tr>
+      <td style="font-weight:500;">${r.label}</td>
+      <td>CA$${r.p50.toFixed(3)}</td>
+      <td>CA$${r.p10.toFixed(3)}</td>
+      <td>CA$${r.p90.toFixed(3)}</td>
+      <td>CA$${r.p5.toFixed(3)}</td>
+      <td>CA$${r.p95.toFixed(3)}</td>
+      <td style="color:${chg >= 0 ? '#10b981' : '#ef4444'}">${chg >= 0 ? '+' : ''}${chg}%</td>
+      <td><span class="badge ${b.cls}">${b.txt}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('vol').addEventListener('input', e => document.getElementById('vol-out').textContent = e.target.value + '%');
+document.getElementById('drift').addEventListener('input', e => { const v = parseInt(e.target.value); document.getElementById('drift-out').textContent = (v >= 0 ? '+' : '') + v + '%'; });
+document.getElementById('mr').addEventListener('input', e => document.getElementById('mr-out').textContent = e.target.value + '%');
+
+runModel();
+</script>
+</body>
+</html>
